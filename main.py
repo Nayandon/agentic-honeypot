@@ -5,9 +5,14 @@ import re
 import requests
 import random
 
-app = FastAPI()
+# ✅ Swagger UI enabled, but "Try it out" DISABLED
+app = FastAPI(
+    swagger_ui_parameters={
+        "tryItOutEnabled": False
+    }
+)
 
-# ---------------- API KEY (OPTIONAL) ----------------
+# ---------------- OPTIONAL API KEY ----------------
 API_KEY = "GUVI_SECRET_KEY_123"
 
 # ---------------- In-memory storage ----------------
@@ -62,9 +67,6 @@ def generate_agent_reply(text: str, session):
     fillers = ["umm", "uh", "hmm", "wait", "sorry", "okay"]
     filler = random.choice(fillers)
 
-    if "sbi" in full_context and "hdfc" in text_lower:
-        return "Oh wait, sorry… I thought this was SBI earlier. HDFC then, right? What do I need to do now?"
-
     if "upi" in text_lower:
         return f"{filler} I actually have two UPI IDs. Which one should I use?"
 
@@ -72,7 +74,7 @@ def generate_agent_reply(text: str, session):
         return f"{filler} this link isn’t opening properly on my phone. Is there another way?"
 
     if "blocked" in text_lower or "suspended" in text_lower:
-        return "This is really sudden… my account was working fine today. Why is it blocked now?"
+        return "This is really sudden… my account was working fine today. Why is it blocked?"
 
     if "call" in text_lower or "number" in text_lower:
         return "I’m at work right now and can’t take calls. Can you explain it here?"
@@ -119,7 +121,7 @@ def receive_message(
     body: RequestBody,
     x_api_key: Optional[str] = Header(None)
 ):
-    # Optional API key check (GUVI-safe)
+    # ✅ Optional API key (GUVI-safe)
     if x_api_key is not None and x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -139,19 +141,12 @@ def receive_message(
             "callbackSent": False
         }
 
-    # Store message
     sessions[session_id]["messages"].append(text)
-
-    # Extract intelligence
     extract_intelligence(text, sessions[session_id])
 
-    # Internal scam detection
     scam = is_scam(text)
-
-    # Generate reply
     reply = generate_agent_reply(text, sessions[session_id])
 
-    # Trigger final callback
     if scam and len(sessions[session_id]["messages"]) >= 2 and not sessions[session_id]["callbackSent"]:
         send_final_callback(session_id)
         sessions[session_id]["callbackSent"] = True
@@ -171,4 +166,3 @@ def receive_message(
 @app.get("/debug/session/{session_id}")
 def debug_session(session_id: str):
     return sessions.get(session_id, {})
-
