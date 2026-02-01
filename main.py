@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import re
@@ -6,6 +6,9 @@ import requests
 import random
 
 app = FastAPI()
+
+# ---------------- API KEY ----------------
+API_KEY = "GUVI_SECRET_KEY_2005"
 
 # ---------------- In-memory storage ----------------
 sessions = {}
@@ -52,7 +55,6 @@ def generate_agent_reply(text: str, session):
     fillers = ["umm", "uh", "hmm", "wait", "sorry", "okay"]
     filler = random.choice(fillers)
 
-    # Self-correction
     if "sbi" in full_context and "hdfc" in text_lower:
         return "Oh wait, sorry… I thought this was SBI earlier. HDFC then, right? What do I need to do now?"
 
@@ -106,7 +108,14 @@ def home():
     return {"message": "Agentic HoneyPot API is running"}
 
 @app.post("/v1/message")
-def receive_message(body: RequestBody):
+def receive_message(
+    body: RequestBody,
+    x_api_key: str = Header(None)
+):
+    # API key validation
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
     session_id = body.sessionId
     text = body.message.text
 
@@ -155,3 +164,4 @@ def receive_message(body: RequestBody):
 @app.get("/debug/session/{session_id}")
 def debug_session(session_id: str):
     return sessions.get(session_id, {})
+
